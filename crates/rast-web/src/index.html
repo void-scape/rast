@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>rast-web</title>
+</head>
+<body>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        let frameRequests = 0;
+        let frameResponses = 0;
+        let lastFrameTime = Date.now();
+        let frameCount = 0;
+        let fps = 0;
+        let isRunning = true;
+        let intervalId = null;
+
+        function updateFpsDisplay() {
+            const now = Date.now();
+            frameCount++;
+            
+            if (now - lastFrameTime >= 1000) {
+                fps = Math.round((frameCount * 1000) / (now - lastFrameTime));
+                const pending = frameRequests - frameResponses;
+                frameCount = 0;
+                lastFrameTime = now;
+            }
+        }
+
+        function updateFrame() {
+            if (!isRunning) return;
+            
+            const pendingRequests = frameRequests - frameResponses;
+            if (pendingRequests < 3) {
+                frameRequests++;
+                
+                fetch('/pixels')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+                        return response.arrayBuffer();
+                    })
+                    .then(buffer => {
+                        frameResponses++;
+                        
+                        if (buffer.byteLength !== canvas.width * canvas.height * 4) {
+                            throw new Error(`Expected ${canvas.width * canvas.height * 4} bytes, got ${buffer.byteLength}`);
+                        }
+                        
+                        const imageData = ctx.createImageData(canvas.width, canvas.height);
+                        imageData.data.set(new Uint8Array(buffer));
+                        ctx.putImageData(imageData, 0, 0);
+                        
+                        updateFpsDisplay();
+                    })
+                    .catch(err => {
+                        frameResponses++;
+                    });
+            }
+        }
+
+        function startRenderer() {
+            if (intervalId) clearInterval(intervalId);
+            isRunning = true;
+            intervalId = setInterval(updateFrame, 1000/60);
+        }
+
+        startRenderer();
+    </script>
+</body>
+</html>
