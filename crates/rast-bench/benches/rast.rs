@@ -3,7 +3,7 @@ use rast::prelude::*;
 use std::hint::black_box;
 
 const WIDTH: usize = 800;
-const HEIGHT: usize = 600;
+const HEIGHT: usize = 800;
 
 fn verts() -> (Vec3, Vec3, Vec3) {
     let v1 = Vec3::new(

@@ -29,6 +29,17 @@ impl Vec3 {
             z: -self.x * sin + self.z * cos,
         }
     }
+
+    pub fn rotate_z(self, angle: f32) -> Vec3 {
+        let cos = libm::cosf(angle);
+        let sin = libm::sinf(angle);
+
+        Vec3 {
+            x: self.x * cos - self.y * sin,
+            y: self.x * sin + self.y * cos,
+            z: self.z,
+        }
+    }
 }
 
 impl core::ops::Neg for Vec3 {

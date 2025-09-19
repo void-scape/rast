@@ -36,7 +36,7 @@ pub fn serve(mut f: impl FnMut(&mut PixelBuffer, f32) + Send + Sync + 'static) {
     server(double_buffer.clone(), render_time.clone());
 }
 
-pub const WIDTH: usize = 800;
+pub const WIDTH: usize = 600;
 pub const HEIGHT: usize = 600;
 
 struct DoubleBuffer {
