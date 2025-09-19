@@ -10,6 +10,25 @@ impl Vec3 {
     pub const fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
     }
+
+    #[inline]
+    pub const fn to_vec2(self) -> Vec2 {
+        Vec2 {
+            x: self.x,
+            y: self.y,
+        }
+    }
+
+    pub fn rotate_y(self, angle: f32) -> Vec3 {
+        let cos = libm::cosf(angle);
+        let sin = libm::sinf(angle);
+
+        Vec3 {
+            x: self.x * cos + self.z * sin,
+            y: self.y,
+            z: -self.x * sin + self.z * cos,
+        }
+    }
 }
 
 impl core::ops::Neg for Vec3 {
@@ -34,6 +53,15 @@ impl Vec2 {
     #[inline]
     pub const fn new(x: f32, y: f32) -> Self {
         Self { x, y }
+    }
+
+    #[inline]
+    pub const fn extend(self, z: f32) -> Vec3 {
+        Vec3 {
+            x: self.x,
+            y: self.y,
+            z,
+        }
     }
 
     #[inline]

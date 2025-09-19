@@ -5,9 +5,11 @@
     <title>rast-web</title>
 </head>
 <body>
+    <div>Render Time: <span id="renderTime">0</span></div>
     <canvas id="canvas" width="800" height="600"></canvas>
     <script>
         const canvas = document.getElementById('canvas');
+        const renderTimeElement = document.getElementById('renderTime');
         const ctx = canvas.getContext('2d');
 
         let frameRequests = 0;
@@ -18,25 +20,13 @@
         let isRunning = true;
         let intervalId = null;
 
-        function updateFpsDisplay() {
-            const now = Date.now();
-            frameCount++;
-            
-            if (now - lastFrameTime >= 1000) {
-                fps = Math.round((frameCount * 1000) / (now - lastFrameTime));
-                const pending = frameRequests - frameResponses;
-                frameCount = 0;
-                lastFrameTime = now;
-            }
-        }
-
         function updateFrame() {
             if (!isRunning) return;
             
             const pendingRequests = frameRequests - frameResponses;
             if (pendingRequests < 3) {
                 frameRequests++;
-                
+
                 fetch('/pixels')
                     .then(response => {
                         if (!response.ok) {
@@ -59,6 +49,21 @@
                     })
                     .catch(err => {
                         frameResponses++;
+                    });
+
+                fetch('/time')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+                        return response.text();
+                    })
+                    .then(timeText => {
+                        const renderTime = parseFloat(timeText);
+                        renderTimeElement.textContent = renderTime.toFixed(4);
+                    })
+                    .catch(err => {
+                        console.error('Failed to fetch render time:', err);
                     });
             }
         }

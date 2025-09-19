@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 rast = { path = "../rast" }
 tiny_http = "0.12"
+tobj = "4.0.3"
