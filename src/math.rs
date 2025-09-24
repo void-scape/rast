@@ -373,4 +373,3 @@ macro_rules! impl_math_ops {
 
 impl_math_ops!(Vec2, x, y);
 impl_math_ops!(Vec3, x, y, z);
-impl_math_ops!(crate::color::LinearRgb, r, g, b, a);

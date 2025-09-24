@@ -369,6 +369,7 @@ name = "rast"
 version = "0.1.0"
 dependencies = [
  "libm",
+ "tint",
 ]
 
 [[package]]
@@ -500,6 +501,10 @@ dependencies = [
  "quote",
  "unicode-ident",
 ]
+
+[[package]]
+name = "tint"
+version = "0.1.0"
 
 [[package]]
 name = "tiny_http"

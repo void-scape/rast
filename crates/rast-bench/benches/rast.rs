@@ -1,4 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
+use rast::tint::*;
 use rast::*;
 use std::hint::black_box;
 

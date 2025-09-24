@@ -1,5 +1,6 @@
 use std::io::BufReader;
 
+use rast::tint::*;
 use rast::*;
 use rast_web::{HEIGHT, WIDTH, serve};
 
@@ -25,18 +26,6 @@ fn main() {
             )
         }
 
-        let min_z = utah_teapot
-            .iter()
-            .min_by(|a, b| a.z.total_cmp(&b.z))
-            .unwrap()
-            .z;
-        let max_z = utah_teapot
-            .iter()
-            .max_by(|a, b| a.z.total_cmp(&b.z))
-            .unwrap()
-            .z;
-        let range = max_z - min_z;
-
         let offset = Vec3::new(0.0, -1.5, 4.5);
         angle = (angle + dt) % core::f32::consts::TAU;
         for slice in utah_teapot.chunks(3) {
@@ -52,9 +41,9 @@ fn main() {
                 display(v1 + offset),
                 display(v2 + offset),
                 display(v3 + offset),
-                LinearRgb::rgb(1.0, 0.0, 0.0) * (v1.z + min_z).abs() / range,
-                LinearRgb::rgb(0.0, 1.0, 0.0) * (v2.z + min_z).abs() / range,
-                LinearRgb::rgb(0.0, 0.0, 1.0) * (v3.z + min_z).abs() / range,
+                LinearRgb::rgb(1.0, 0.0, 0.0),
+                LinearRgb::rgb(0.0, 1.0, 0.0),
+                LinearRgb::rgb(0.0, 0.0, 1.0),
                 ColorShader,
             );
         }

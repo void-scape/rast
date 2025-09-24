@@ -1,3 +1,4 @@
+use rast::tint::*;
 use rast::*;
 use rast_web::{HEIGHT, WIDTH, serve};
 

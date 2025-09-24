@@ -2,15 +2,15 @@
 extern crate alloc;
 
 use core::marker::PhantomData;
+use tint::*;
 
-pub mod color;
 pub mod math;
 
-pub use color::*;
 pub use math::*;
+pub use tint;
 
-pub fn rast_triangle<S: Shader>(
-    pixels: &mut [Srgb],
+pub fn rast_triangle<S: Shader, Pixel: Color>(
+    pixels: &mut [Pixel],
     width: usize,
     height: usize,
     v1: Vec2,
@@ -94,8 +94,8 @@ pub fn rast_triangle_colored<T>(
     );
 }
 
-fn rast_triangle_shaded<S: Shader>(
-    pixels: &mut [Srgb],
+fn rast_triangle_shaded<S: Shader, Pixel: Color>(
+    pixels: &mut [Pixel],
     depth_buffer: &mut [f32],
     width: usize,
     height: usize,
@@ -140,7 +140,7 @@ fn rast_triangle_shaded<S: Shader>(
 
                 let vd = (d1 * bc.x) + (d2 * bc.y) + (d3 * bc.z);
                 let color = shader.fragment(vd);
-                pixels[index] = color.srgb();
+                pixels[index] = color.into();
             }
         }
     }
@@ -227,7 +227,7 @@ pub enum Sampler {
 
 impl<T> Shader for TextureShader<'_, T>
 where
-    T: Copy + Into<LinearRgb>,
+    T: Copy + Color,
 {
     type VertexData = Vec2;
 
