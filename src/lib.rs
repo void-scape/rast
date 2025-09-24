@@ -3,38 +3,16 @@ extern crate alloc;
 
 use core::marker::PhantomData;
 
-use color::{LinearRgb, Srgb};
-use math::{Vec2, Vec3};
-
 pub mod color;
 pub mod math;
 
-pub mod prelude {
-    pub use crate::color::{Hsv, LinearRgb, Srgb};
-    pub use crate::math::{Vec2, Vec3};
-    pub use crate::{ColorShader, PixelBuffer, TextureShader};
-}
-
-pub struct PixelBuffer {
-    pub pixels: alloc::boxed::Box<[Srgb]>,
-    pub depth_buffer: alloc::boxed::Box<[f32]>,
-    pub width: usize,
-    pub height: usize,
-}
-
-impl PixelBuffer {
-    pub fn new(width: usize, height: usize) -> Self {
-        Self {
-            pixels: alloc::vec![Srgb::default(); width * height].into_boxed_slice(),
-            depth_buffer: alloc::vec![0.0; width * height].into_boxed_slice(),
-            width,
-            height,
-        }
-    }
-}
+pub use color::*;
+pub use math::*;
 
 pub fn rast_triangle<S: Shader>(
-    pixel_buffer: &mut PixelBuffer,
+    pixels: &mut [Srgb],
+    width: usize,
+    height: usize,
     v1: Vec2,
     v2: Vec2,
     v3: Vec2,
@@ -44,7 +22,10 @@ pub fn rast_triangle<S: Shader>(
     shader: S,
 ) {
     rast_triangle_shaded(
-        pixel_buffer,
+        pixels,
+        &mut [],
+        width,
+        height,
         v1.extend(0.0),
         v2.extend(0.0),
         v3.extend(0.0),
@@ -56,13 +37,52 @@ pub fn rast_triangle<S: Shader>(
     );
 }
 
-pub fn rast_triangle_colored<T>(pixel_buffer: &mut PixelBuffer, v1: Vec2, v2: Vec2, v3: Vec2, c: T)
-where
+pub fn rast_triangle_checked<S: Shader>(
+    pixels: &mut [Srgb],
+    depth_buffer: &mut [f32],
+    width: usize,
+    height: usize,
+    v1: Vec3,
+    v2: Vec3,
+    v3: Vec3,
+    d1: S::VertexData,
+    d2: S::VertexData,
+    d3: S::VertexData,
+    shader: S,
+) {
+    rast_triangle_shaded(
+        pixels,
+        depth_buffer,
+        width,
+        height,
+        v1,
+        v2,
+        v3,
+        d1,
+        d2,
+        d3,
+        shader,
+        true,
+    );
+}
+
+pub fn rast_triangle_colored<T>(
+    pixels: &mut [Srgb],
+    width: usize,
+    height: usize,
+    v1: Vec2,
+    v2: Vec2,
+    v3: Vec2,
+    c: T,
+) where
     T: Into<LinearRgb>,
 {
     let c = c.into();
     rast_triangle_shaded(
-        pixel_buffer,
+        pixels,
+        &mut [],
+        width,
+        height,
         v1.extend(0.0),
         v2.extend(0.0),
         v3.extend(0.0),
@@ -74,21 +94,11 @@ where
     );
 }
 
-pub fn rast_triangle_checked<S: Shader>(
-    pixel_buffer: &mut PixelBuffer,
-    v1: Vec3,
-    v2: Vec3,
-    v3: Vec3,
-    d1: S::VertexData,
-    d2: S::VertexData,
-    d3: S::VertexData,
-    shader: S,
-) {
-    rast_triangle_shaded(pixel_buffer, v1, v2, v3, d1, d2, d3, shader, true);
-}
-
 fn rast_triangle_shaded<S: Shader>(
-    pixel_buffer: &mut PixelBuffer,
+    pixels: &mut [Srgb],
+    depth_buffer: &mut [f32],
+    width: usize,
+    height: usize,
     v1: Vec3,
     v2: Vec3,
     v3: Vec3,
@@ -98,26 +108,21 @@ fn rast_triangle_shaded<S: Shader>(
     mut shader: S,
     depth_check: bool,
 ) {
-    // one dimensional clip
+    // bounding box clip
     let min_x = (v1.x.min(v2.x).min(v3.x).max(0.0)) as usize;
-    let max_x = libm::ceilf(v1.x.max(v2.x).max(v3.x).min(pixel_buffer.width as f32)) as usize;
+    let max_x = libm::ceilf(v1.x.max(v2.x).max(v3.x).min(width as f32)) as usize;
     let min_y = (v1.y.min(v2.y).min(v3.y).max(0.0)) as usize;
-    let max_y = libm::ceilf(v1.y.max(v2.y).max(v3.y).min(pixel_buffer.height as f32)) as usize;
-    if min_y == max_y || min_x == max_x || min_y > pixel_buffer.height || min_x > pixel_buffer.width
-    {
+    let max_y = libm::ceilf(v1.y.max(v2.y).max(v3.y).min(height as f32)) as usize;
+    if min_y == max_y || min_x == max_x || min_y > height || min_x > width {
         return;
     }
 
     // I first saw this method used here:
     //
     // https://github.com/tsoding/olive.c/blob/master/olive.c
-    for y in min_y..max_y.min(pixel_buffer.height) {
-        for x in min_x..max_x.min(pixel_buffer.width) {
-            let index = y * pixel_buffer.width + x;
-            if index >= pixel_buffer.pixels.len() {
-                continue;
-            }
-
+    for y in min_y..max_y.min(height) {
+        for x in min_x..max_x.min(width) {
+            let index = y * width + x;
             let bc = barycentric_coordinates(
                 Vec2::new(x as f32, y as f32),
                 v1.to_vec2(),
@@ -127,16 +132,15 @@ fn rast_triangle_shaded<S: Shader>(
             if bc.x > 0.0 && bc.x < 1.0 && bc.y > 0.0 && bc.y < 1.0 && bc.z > 0.0 && bc.z < 1.0 {
                 if depth_check {
                     let z = (v1.z * bc.x) + (v2.z * bc.y) + (v3.z * bc.z);
-                    let dp = &mut pixel_buffer.depth_buffer[index];
-                    if *dp <= z {
+                    if depth_buffer[index] <= z {
                         continue;
                     }
-                    *dp = z;
+                    depth_buffer[index] = z;
                 }
 
                 let vd = (d1 * bc.x) + (d2 * bc.y) + (d3 * bc.z);
                 let color = shader.fragment(vd);
-                pixel_buffer.pixels[index] = color.srgb();
+                pixels[index] = color.srgb();
             }
         }
     }
@@ -257,36 +261,6 @@ where
                 let top = c00 * (1.0 - dx) + c10 * dx;
                 let bottom = c01 * (1.0 - dx) + c11 * dx;
                 top * (1.0 - dy) + bottom * dy
-            }
-        }
-    }
-}
-
-pub mod bounding_box {
-    use super::*;
-
-    pub fn rast_triangle2d_bounding_box<T>(
-        pixel_buffer: &mut PixelBuffer,
-        v1: Vec2,
-        v2: Vec2,
-        v3: Vec2,
-        c: T,
-    ) where
-        T: Into<Srgb>,
-    {
-        let c = c.into();
-        let min_x = (v1.x.min(v2.x).min(v3.x).max(0.0)) as usize;
-        let max_x = (v1.x.max(v2.x).max(v3.x).min(pixel_buffer.width as f32)) as usize;
-        let min_y = (v1.y.min(v2.y).min(v3.y).max(0.0)) as usize;
-        let max_y = (v1.y.max(v2.y).max(v3.y).min(pixel_buffer.height as f32)) as usize;
-
-        if min_y == max_y || min_x == max_x {
-            return;
-        }
-
-        for y in min_y..max_y {
-            for x in min_x..max_x {
-                pixel_buffer.pixels[y * pixel_buffer.width + x] = c;
             }
         }
     }

@@ -1,5 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use rast::prelude::*;
+use rast::*;
 use std::hint::black_box;
 
 const WIDTH: usize = 800;
@@ -24,10 +24,12 @@ fn verts() -> (Vec3, Vec3, Vec3) {
     (v1, v2, v3)
 }
 
-fn triangle(pixel_buffer: &mut PixelBuffer) {
+fn triangle(pixel_buffer: &mut [Srgb]) {
     let (v1, v2, v3) = verts();
     rast::rast_triangle_colored(
-        black_box(pixel_buffer),
+        pixel_buffer,
+        WIDTH,
+        HEIGHT,
         black_box(v1.to_vec2()),
         black_box(v2.to_vec2()),
         black_box(v3.to_vec2()),
@@ -35,7 +37,7 @@ fn triangle(pixel_buffer: &mut PixelBuffer) {
     );
 }
 
-fn triangle_rgb(pixel_buffer: &mut PixelBuffer) {
+fn triangle_rgb(pixel_buffer: &mut [Srgb]) {
     let (v1, v2, v3) = verts();
 
     let c1 = LinearRgb::rgb(black_box(1.0), black_box(0.0), black_box(0.0));
@@ -43,7 +45,9 @@ fn triangle_rgb(pixel_buffer: &mut PixelBuffer) {
     let c3 = LinearRgb::rgb(black_box(0.0), black_box(0.0), black_box(1.0));
 
     rast::rast_triangle(
-        black_box(pixel_buffer),
+        pixel_buffer,
+        WIDTH,
+        HEIGHT,
         black_box(v1.to_vec2()),
         black_box(v2.to_vec2()),
         black_box(v3.to_vec2()),
@@ -54,7 +58,7 @@ fn triangle_rgb(pixel_buffer: &mut PixelBuffer) {
     );
 }
 
-fn triangle_texture(pixel_buffer: &mut PixelBuffer, texture: TextureShader<Srgb>) {
+fn triangle_texture(pixel_buffer: &mut [Srgb], texture: TextureShader<Srgb>) {
     let (v1, v2, v3) = verts();
 
     let uv1 = Vec2::new(black_box(0.0), black_box(1.0));
@@ -62,7 +66,9 @@ fn triangle_texture(pixel_buffer: &mut PixelBuffer, texture: TextureShader<Srgb>
     let uv3 = Vec2::new(black_box(1.0), black_box(1.0));
 
     rast::rast_triangle(
-        black_box(pixel_buffer),
+        pixel_buffer,
+        WIDTH,
+        HEIGHT,
         black_box(v1.to_vec2()),
         black_box(v2.to_vec2()),
         black_box(v3.to_vec2()),
@@ -73,7 +79,7 @@ fn triangle_texture(pixel_buffer: &mut PixelBuffer, texture: TextureShader<Srgb>
     );
 }
 
-fn triangle_rgb_checked(pixel_buffer: &mut PixelBuffer) {
+fn triangle_rgb_checked(pixel_buffer: &mut [Srgb], depth_buffer: &mut [f32]) {
     let (v1, v2, v3) = verts();
 
     let c1 = LinearRgb::rgb(black_box(1.0), black_box(0.0), black_box(0.0));
@@ -81,7 +87,10 @@ fn triangle_rgb_checked(pixel_buffer: &mut PixelBuffer) {
     let c3 = LinearRgb::rgb(black_box(0.0), black_box(0.0), black_box(1.0));
 
     rast::rast_triangle_checked(
-        black_box(pixel_buffer),
+        pixel_buffer,
+        depth_buffer,
+        WIDTH,
+        HEIGHT,
         black_box(v1),
         black_box(v2),
         black_box(v3),
@@ -92,11 +101,26 @@ fn triangle_rgb_checked(pixel_buffer: &mut PixelBuffer) {
     );
 }
 
-fn bench_fn(c: &mut Criterion, name: &str, f: impl Fn(&mut PixelBuffer)) {
+fn bench_fn(c: &mut Criterion, name: &str, f: impl Fn(&mut [Srgb])) {
     c.bench_function(name, |b| {
         b.iter_batched(
-            || PixelBuffer::new(WIDTH, HEIGHT),
+            || vec![Srgb::default(); WIDTH * HEIGHT],
             |mut buf| f(black_box(&mut buf)),
+            criterion::BatchSize::LargeInput,
+        );
+    });
+}
+
+fn bench_fn_checked(c: &mut Criterion, name: &str, f: impl Fn(&mut [Srgb], &mut [f32])) {
+    c.bench_function(name, |b| {
+        b.iter_batched(
+            || {
+                (
+                    vec![Srgb::default(); WIDTH * HEIGHT],
+                    vec![1.0; WIDTH * HEIGHT],
+                )
+            },
+            |(mut buf, mut depth)| f(black_box(&mut buf), black_box(&mut depth)),
             criterion::BatchSize::LargeInput,
         );
     });
@@ -105,7 +129,7 @@ fn bench_fn(c: &mut Criterion, name: &str, f: impl Fn(&mut PixelBuffer)) {
 fn criterion_benchmark(c: &mut Criterion) {
     bench_fn(c, "triangle", triangle);
     bench_fn(c, "triangle_rgb", triangle_rgb);
-    bench_fn(c, "triangle_rgb_checked", triangle_rgb_checked);
+    bench_fn_checked(c, "triangle_rgb_checked", triangle_rgb_checked);
 
     let texture = TextureShader {
         texture: &std::array::from_fn::<_, 10_000, _>(|i| {
@@ -121,11 +145,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     };
     c.bench_function("triangle_texture", |b| {
         b.iter_batched(
-            || {
-                let mut pb = PixelBuffer::new(WIDTH, HEIGHT);
-                pb.depth_buffer.fill(1.0);
-                pb
-            },
+            || vec![Srgb::default(); WIDTH * HEIGHT],
             |mut buf| triangle_texture(black_box(&mut buf), black_box(texture)),
             criterion::BatchSize::LargeInput,
         );

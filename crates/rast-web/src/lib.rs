@@ -1,12 +1,12 @@
-use rast::prelude::*;
+use rast::*;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 use tiny_http::{Header, Response, Server};
 
-pub fn serve(mut f: impl FnMut(&mut PixelBuffer, f32) + Send + Sync + 'static) {
+pub fn serve(mut f: impl FnMut(&mut [Srgb], &mut [f32], f32) + Send + Sync + 'static) {
     let render_time = Arc::new(RwLock::new(0.0));
-    let double_buffer = Arc::new(RwLock::new(DoubleBuffer::new(WIDTH, HEIGHT)));
+    let double_buffer = Arc::new(RwLock::new(PixelBuffer::new(WIDTH, HEIGHT)));
     thread::spawn({
         let render_time = render_time.clone();
         let double_buffer = double_buffer.clone();
@@ -15,12 +15,13 @@ pub fn serve(mut f: impl FnMut(&mut PixelBuffer, f32) + Send + Sync + 'static) {
             loop {
                 let start = std::time::Instant::now();
                 {
-                    let mut buffers = double_buffer.write().unwrap();
-                    let pixel_buffer = &mut buffers.back;
-                    pixel_buffer.pixels.fill(Srgb::rgb(42, 42, 42));
-                    pixel_buffer.depth_buffer.fill(std::f32::MAX);
-                    f(pixel_buffer, dt);
-                    buffers.swap();
+                    let PixelBuffer {
+                        pixels,
+                        depth_buffer,
+                    } = &mut *double_buffer.write().unwrap();
+                    pixels.fill(Srgb::rgb(42, 42, 42));
+                    depth_buffer.fill(std::f32::MAX);
+                    f(pixels.as_mut_slice(), depth_buffer.as_mut_slice(), dt);
                 }
                 let end = std::time::Instant::now()
                     .duration_since(start)
@@ -39,25 +40,21 @@ pub fn serve(mut f: impl FnMut(&mut PixelBuffer, f32) + Send + Sync + 'static) {
 pub const WIDTH: usize = 600;
 pub const HEIGHT: usize = 600;
 
-struct DoubleBuffer {
-    front: PixelBuffer,
-    back: PixelBuffer,
+struct PixelBuffer {
+    pixels: Vec<Srgb>,
+    depth_buffer: Vec<f32>,
 }
 
-impl DoubleBuffer {
+impl PixelBuffer {
     fn new(width: usize, height: usize) -> Self {
         Self {
-            front: PixelBuffer::new(width, height),
-            back: PixelBuffer::new(width, height),
+            pixels: vec![Srgb::default(); width * height],
+            depth_buffer: vec![0.0; width * height],
         }
-    }
-
-    fn swap(&mut self) {
-        std::mem::swap(&mut self.front, &mut self.back);
     }
 }
 
-fn server(double_buffer: Arc<RwLock<DoubleBuffer>>, render_time: Arc<RwLock<f32>>) {
+fn server(double_buffer: Arc<RwLock<PixelBuffer>>, render_time: Arc<RwLock<f32>>) {
     let server = Server::http("localhost:3030").unwrap();
     println!("Server running at http://localhost:3030");
 
@@ -68,7 +65,7 @@ fn server(double_buffer: Arc<RwLock<DoubleBuffer>>, render_time: Arc<RwLock<f32>
                 let buffers = double_buffer.read().unwrap();
                 let pixel_data = unsafe {
                     std::slice::from_raw_parts::<u8>(
-                        buffers.front.pixels.as_ptr() as *const u8,
+                        buffers.pixels.as_ptr() as *const u8,
                         WIDTH * HEIGHT * 4,
                     )
                 };

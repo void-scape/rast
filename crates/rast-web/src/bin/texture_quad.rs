@@ -1,4 +1,4 @@
-use rast::prelude::*;
+use rast::*;
 use rast_web::{HEIGHT, WIDTH, serve};
 
 fn main() {
@@ -14,7 +14,7 @@ fn main() {
     };
 
     let mut angle = 0.0;
-    serve(move |pixel_buffer, dt| {
+    serve(move |pixel_buffer, _, dt| {
         angle += dt;
 
         let scale = Vec2::new(WIDTH as f32 / 3.0, HEIGHT as f32 / 3.0);
@@ -26,7 +26,18 @@ fn main() {
         let uv1 = Vec2::new(0.0, 1.0);
         let uv2 = Vec2::new(0.0, 0.0);
         let uv3 = Vec2::new(1.0, 1.0);
-        rast::rast_triangle(pixel_buffer, v1, v2, v3, uv1, uv2, uv3, shader);
+        rast::rast_triangle(
+            pixel_buffer,
+            WIDTH,
+            HEIGHT,
+            v1,
+            v2,
+            v3,
+            uv1,
+            uv2,
+            uv3,
+            shader,
+        );
 
         let v1 = transform_vertex(Vec3::new(0.5, -0.7, 0.0), angle, scale, offset);
         let v2 = transform_vertex(Vec3::new(-0.5, -0.7, 0.0), angle, scale, offset);
@@ -34,7 +45,18 @@ fn main() {
         let uv1 = Vec2::new(1.0, 0.0);
         let uv2 = Vec2::new(0.0, 0.0);
         let uv3 = Vec2::new(1.0, 1.0);
-        rast::rast_triangle(pixel_buffer, v1, v2, v3, uv1, uv2, uv3, shader);
+        rast::rast_triangle(
+            pixel_buffer,
+            WIDTH,
+            HEIGHT,
+            v1,
+            v2,
+            v3,
+            uv1,
+            uv2,
+            uv3,
+            shader,
+        );
     });
 }
 

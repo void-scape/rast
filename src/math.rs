@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct Vec3 {
     pub x: f32,
     pub y: f32,
@@ -6,9 +6,26 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
+    pub const ZERO: Self = Self::new(0.0, 0.0, 0.0);
+
     #[inline]
     pub const fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
+    }
+
+    #[inline]
+    pub const fn x(x: f32) -> Self {
+        Self { x, ..Self::ZERO }
+    }
+
+    #[inline]
+    pub const fn y(y: f32) -> Self {
+        Self { y, ..Self::ZERO }
+    }
+
+    #[inline]
+    pub const fn z(z: f32) -> Self {
+        Self { z, ..Self::ZERO }
     }
 
     #[inline]
@@ -19,6 +36,81 @@ impl Vec3 {
         }
     }
 
+    #[inline]
+    #[must_use]
+    pub const fn cross(self, other: Self) -> Self {
+        Self {
+            x: self.y * other.z - other.y * self.z,
+            y: self.z * other.x - other.z * self.x,
+            z: self.x * other.y - other.x * self.y,
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn dot(self, other: Self) -> f32 {
+        (self.x * other.x) + (self.y * other.y) + (self.z * other.z)
+    }
+
+    #[inline]
+    pub fn length(self) -> f32 {
+        libm::sqrtf(self.length_squared())
+    }
+
+    #[inline]
+    pub fn length_squared(self) -> f32 {
+        self.x * self.x + self.y * self.y + self.z * self.z
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn normalize(self) -> Self {
+        let length = self.length();
+        assert!(
+            length != 0.0,
+            "tried to call `Vec3::normalize` with a length of 0.0"
+        );
+        Self {
+            x: self.x / length,
+            y: self.y / length,
+            z: self.z / length,
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn normalize_or_zero(self) -> Self {
+        let length = self.length();
+        if length == 0.0 {
+            Self::default()
+        } else {
+            Self {
+                x: self.x / length,
+                y: self.y / length,
+                z: self.z / length,
+            }
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn element_sum(self) -> f32 {
+        self.x + self.y + self.z
+    }
+
+    #[inline]
+    pub fn rotate_x(self, angle: f32) -> Vec3 {
+        let cos = libm::cosf(angle);
+        let sin = libm::sinf(angle);
+
+        Vec3 {
+            x: self.x,
+            y: self.y * cos - self.z * sin,
+            z: self.y * sin + self.z * cos,
+        }
+    }
+
+    #[inline]
     pub fn rotate_y(self, angle: f32) -> Vec3 {
         let cos = libm::cosf(angle);
         let sin = libm::sinf(angle);
@@ -30,6 +122,7 @@ impl Vec3 {
         }
     }
 
+    #[inline]
     pub fn rotate_z(self, angle: f32) -> Vec3 {
         let cos = libm::cosf(angle);
         let sin = libm::sinf(angle);
@@ -54,7 +147,7 @@ impl core::ops::Neg for Vec3 {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,
@@ -67,6 +160,7 @@ impl Vec2 {
     }
 
     #[inline]
+    #[must_use]
     pub const fn extend(self, z: f32) -> Vec3 {
         Vec3 {
             x: self.x,
@@ -76,8 +170,61 @@ impl Vec2 {
     }
 
     #[inline]
+    #[must_use]
     pub const fn cross(self, other: Self) -> f32 {
         (self.x * other.y) - (self.y * other.x)
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn dot(self, other: Self) -> f32 {
+        (self.x * other.x) + (self.y * other.y)
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn length(self) -> f32 {
+        libm::sqrtf(self.length_squared())
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn length_squared(self) -> f32 {
+        self.x * self.x + self.y * self.y
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn normalize(self) -> Self {
+        let length = self.length();
+        assert!(
+            length != 0.0,
+            "tried to call `Vec2::normalize` with a length of 0.0"
+        );
+        Self {
+            x: self.x / length,
+            y: self.y / length,
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn normalize_or_zero(self) -> Self {
+        let length = self.length();
+        if length == 0.0 {
+            Self::default()
+        } else {
+            Self {
+                x: self.x / length,
+                y: self.y / length,
+            }
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn element_sum(self) -> f32 {
+        self.x + self.y
     }
 }
 

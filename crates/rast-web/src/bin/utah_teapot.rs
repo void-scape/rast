@@ -1,13 +1,13 @@
 use std::io::BufReader;
 
-use rast::prelude::*;
+use rast::*;
 use rast_web::{HEIGHT, WIDTH, serve};
 
 fn main() {
     let utah_teapot = read_utah_teapot();
     let mut angle = 0.0;
 
-    serve(move |pixel_buffer, dt| {
+    serve(move |pixel_buffer, depth_buffer, dt| {
         fn display(mut v: Vec3) -> Vec3 {
             if v.z < 0.0 {
                 v.z = -v.z;
@@ -46,6 +46,9 @@ fn main() {
 
             rast::rast_triangle_checked(
                 pixel_buffer,
+                depth_buffer,
+                WIDTH,
+                HEIGHT,
                 display(v1 + offset),
                 display(v2 + offset),
                 display(v3 + offset),
