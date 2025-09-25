@@ -1,4 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
+use glam::*;
 use rast::tint::*;
 use rast::*;
 use std::hint::black_box;
@@ -31,9 +32,12 @@ fn triangle(pixel_buffer: &mut [Srgb]) {
         pixel_buffer,
         WIDTH,
         HEIGHT,
-        black_box(v1.to_vec2()),
-        black_box(v2.to_vec2()),
-        black_box(v3.to_vec2()),
+        v1.x,
+        v1.y,
+        v2.x,
+        v2.y,
+        v3.x,
+        v3.y,
         Srgb::rgb(255, 255, 255),
     );
 }
@@ -49,9 +53,12 @@ fn triangle_rgb(pixel_buffer: &mut [Srgb]) {
         pixel_buffer,
         WIDTH,
         HEIGHT,
-        black_box(v1.to_vec2()),
-        black_box(v2.to_vec2()),
-        black_box(v3.to_vec2()),
+        v1.x,
+        v1.y,
+        v2.x,
+        v2.y,
+        v3.x,
+        v3.y,
         black_box(c1),
         black_box(c2),
         black_box(c3),
@@ -62,17 +69,20 @@ fn triangle_rgb(pixel_buffer: &mut [Srgb]) {
 fn triangle_texture(pixel_buffer: &mut [Srgb], texture: TextureShader<Srgb>) {
     let (v1, v2, v3) = verts();
 
-    let uv1 = Vec2::new(black_box(0.0), black_box(1.0));
-    let uv2 = Vec2::new(black_box(0.0), black_box(0.0));
-    let uv3 = Vec2::new(black_box(1.0), black_box(1.0));
+    let uv1 = (black_box(0.0), black_box(1.0));
+    let uv2 = (black_box(0.0), black_box(0.0));
+    let uv3 = (black_box(1.0), black_box(1.0));
 
     rast::rast_triangle(
         pixel_buffer,
         WIDTH,
         HEIGHT,
-        black_box(v1.to_vec2()),
-        black_box(v2.to_vec2()),
-        black_box(v3.to_vec2()),
+        v1.x,
+        v1.y,
+        v2.x,
+        v2.y,
+        v3.x,
+        v3.y,
         black_box(uv1),
         black_box(uv2),
         black_box(uv3),
@@ -92,9 +102,15 @@ fn triangle_rgb_checked(pixel_buffer: &mut [Srgb], depth_buffer: &mut [f32]) {
         depth_buffer,
         WIDTH,
         HEIGHT,
-        black_box(v1),
-        black_box(v2),
-        black_box(v3),
+        v1.x,
+        v1.y,
+        v1.z,
+        v2.x,
+        v2.y,
+        v2.z,
+        v3.x,
+        v3.y,
+        v3.z,
         black_box(c1),
         black_box(c2),
         black_box(c3),
@@ -103,25 +119,18 @@ fn triangle_rgb_checked(pixel_buffer: &mut [Srgb], depth_buffer: &mut [f32]) {
 }
 
 fn bench_fn(c: &mut Criterion, name: &str, f: impl Fn(&mut [Srgb])) {
+    let mut buf = vec![Srgb::default(); WIDTH * HEIGHT];
     c.bench_function(name, |b| {
-        b.iter_batched(
-            || vec![Srgb::default(); WIDTH * HEIGHT],
-            |mut buf| f(black_box(&mut buf)),
-            criterion::BatchSize::LargeInput,
-        );
+        b.iter(|| f(black_box(&mut buf)));
     });
 }
 
 fn bench_fn_checked(c: &mut Criterion, name: &str, f: impl Fn(&mut [Srgb], &mut [f32])) {
+    let mut buf = vec![Srgb::default(); WIDTH * HEIGHT];
     c.bench_function(name, |b| {
         b.iter_batched(
-            || {
-                (
-                    vec![Srgb::default(); WIDTH * HEIGHT],
-                    vec![1.0; WIDTH * HEIGHT],
-                )
-            },
-            |(mut buf, mut depth)| f(black_box(&mut buf), black_box(&mut depth)),
+            || vec![1.0; WIDTH * HEIGHT],
+            |mut depth| f(black_box(&mut buf), black_box(&mut depth)),
             criterion::BatchSize::LargeInput,
         );
     });
@@ -144,12 +153,9 @@ fn criterion_benchmark(c: &mut Criterion) {
         height: 100,
         sampler: rast::Sampler::Nearest,
     };
+    let mut buf = vec![Srgb::default(); WIDTH * HEIGHT];
     c.bench_function("triangle_texture", |b| {
-        b.iter_batched(
-            || vec![Srgb::default(); WIDTH * HEIGHT],
-            |mut buf| triangle_texture(black_box(&mut buf), black_box(texture)),
-            criterion::BatchSize::LargeInput,
-        );
+        b.iter(|| triangle_texture(black_box(&mut buf), black_box(texture)));
     });
 }
 

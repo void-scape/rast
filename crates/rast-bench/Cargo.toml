@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 rast = { path = "../../../rast" }
+glam = "0.30.8"
 
 [dev-dependencies]
 criterion = "0.5"

@@ -1,5 +1,6 @@
 use std::io::BufReader;
 
+use glam::*;
 use rast::tint::*;
 use rast::*;
 use rast_web::{HEIGHT, WIDTH, serve};
@@ -29,18 +30,29 @@ fn main() {
         let offset = Vec3::new(0.0, -1.5, 4.5);
         angle = (angle + dt) % core::f32::consts::TAU;
         for slice in utah_teapot.chunks(3) {
-            let v1 = slice[0].rotate_y(angle);
-            let v2 = slice[1].rotate_y(angle);
-            let v3 = slice[2].rotate_y(angle);
+            let quat = Quat::from_rotation_y(angle);
+            let v1 = quat.mul_vec3(slice[0]);
+            let v2 = quat.mul_vec3(slice[1]);
+            let v3 = quat.mul_vec3(slice[2]);
+
+            let v1 = display(v1 + offset);
+            let v2 = display(v2 + offset);
+            let v3 = display(v3 + offset);
 
             rast::rast_triangle_checked(
                 pixel_buffer,
                 depth_buffer,
                 WIDTH,
                 HEIGHT,
-                display(v1 + offset),
-                display(v2 + offset),
-                display(v3 + offset),
+                v1.x,
+                v1.y,
+                v1.z,
+                v2.x,
+                v2.y,
+                v2.z,
+                v3.x,
+                v3.y,
+                v3.z,
                 LinearRgb::rgb(1.0, 0.0, 0.0),
                 LinearRgb::rgb(0.0, 1.0, 0.0),
                 LinearRgb::rgb(0.0, 0.0, 1.0),
