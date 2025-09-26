@@ -1,3 +1,6 @@
+// TODO: There is either a precision issue in the zbuffer or a bug somewhere upstream
+// causing z fighting.
+
 #![no_std]
 extern crate alloc;
 
@@ -21,20 +24,15 @@ pub fn rast_triangle<S: Shader, Pixel: Color>(
     d3: S::VertexData,
     shader: S,
 ) {
-    rast_triangle_shaded(
+    #[rustfmt::skip]
+    rast_triangle_inner(
         pixels,
         &mut [],
         width,
         height,
-        v1x,
-        v1y,
-        0.0,
-        v2x,
-        v2y,
-        0.0,
-        v3x,
-        v3y,
-        0.0,
+        v1x, v1y, 0.0,
+        v2x, v2y, 0.0,
+        v3x, v3y, 0.0,
         d1,
         d2,
         d3,
@@ -45,7 +43,7 @@ pub fn rast_triangle<S: Shader, Pixel: Color>(
 
 pub fn rast_triangle_checked<S: Shader>(
     pixels: &mut [Srgb],
-    depth_buffer: &mut [f32],
+    zbuffer: &mut [f32],
     width: usize,
     height: usize,
     v1x: f32,
@@ -62,20 +60,15 @@ pub fn rast_triangle_checked<S: Shader>(
     d3: S::VertexData,
     shader: S,
 ) {
-    rast_triangle_shaded(
+    #[rustfmt::skip]
+    rast_triangle_inner(
         pixels,
-        depth_buffer,
+        zbuffer,
         width,
         height,
-        v1x,
-        v1y,
-        v1z,
-        v2x,
-        v2y,
-        v2z,
-        v3x,
-        v3y,
-        v3z,
+        v1x, v1y, v1z,
+        v2x, v2y, v2z,
+        v3x, v3y, v3z,
         d1,
         d2,
         d3,
@@ -115,9 +108,204 @@ pub fn rast_triangle_colored<Pixel: Copy>(
     }
 }
 
-fn rast_triangle_shaded<S: Shader, Pixel: Color>(
+pub fn rast_line<Pixel: Copy>(
     pixels: &mut [Pixel],
-    depth_buffer: &mut [f32],
+    width: usize,
+    height: usize,
+    v1x: f32,
+    v1y: f32,
+    v1z: f32,
+    v2x: f32,
+    v2y: f32,
+    v2z: f32,
+    c: Pixel,
+) {
+    #[rustfmt::skip]
+    rast_line_inner(
+        pixels,
+        &mut [],
+        width,
+        height,
+        v1x, v1y, v1z,
+        v2x, v2y, v2z,
+        c,
+        false,
+    );
+}
+
+pub fn rast_line_checked<Pixel: Copy>(
+    pixels: &mut [Pixel],
+    zbuffer: &mut [f32],
+    width: usize,
+    height: usize,
+    v1x: f32,
+    v1y: f32,
+    v1z: f32,
+    v2x: f32,
+    v2y: f32,
+    v2z: f32,
+    c: Pixel,
+) {
+    #[rustfmt::skip]
+    rast_line_inner(
+        pixels,
+        zbuffer,
+        width,
+        height,
+        v1x, v1y, v1z,
+        v2x, v2y, v2z,
+        c,
+        true,
+    );
+}
+
+fn rast_line_inner<Pixel: Copy>(
+    pixels: &mut [Pixel],
+    zbuffer: &mut [f32],
+    width: usize,
+    height: usize,
+    v1x: f32,
+    v1y: f32,
+    v1z: f32,
+    v2x: f32,
+    v2y: f32,
+    v2z: f32,
+    c: Pixel,
+    depth_check: bool,
+) {
+    let dx = v2x - v1x;
+    let dy = v2y - v1y;
+    if dx.abs() < 1.0 && dy.abs() < 1.0 {
+        return;
+    }
+
+    let steps = if dx.abs() > dy.abs() {
+        libm::ceilf(dx.abs()) as i32
+    } else {
+        libm::ceilf(dy.abs()) as i32
+    };
+
+    let step_x = dx / steps as f32;
+    let step_y = dy / steps as f32;
+    let step_z = (v2z - v1z) / steps as f32;
+
+    for i in 0..=steps {
+        let x = v1x + i as f32 * step_x;
+        let y = v1y + i as f32 * step_y;
+        let z = v1z + i as f32 * step_z;
+
+        let pixel_x = libm::floorf(x) as i32;
+        let pixel_y = libm::floorf(y) as i32;
+
+        if pixel_x >= 0 && pixel_x < width as i32 && pixel_y >= 0 && pixel_y < height as i32 {
+            let index = (pixel_y as usize) * width + (pixel_x as usize);
+
+            if depth_check {
+                if zbuffer[index] <= z {
+                    continue;
+                }
+                zbuffer[index] = z;
+            }
+            pixels[index] = c;
+        }
+    }
+}
+
+pub fn rast_triangle_wireframe<Pixel: Copy>(
+    pixels: &mut [Pixel],
+    width: usize,
+    height: usize,
+    v1x: f32,
+    v1y: f32,
+    v1z: f32,
+    v2x: f32,
+    v2y: f32,
+    v2z: f32,
+    v3x: f32,
+    v3y: f32,
+    v3z: f32,
+    c: Pixel,
+) {
+    #[rustfmt::skip]
+    rast_line(
+        pixels,
+        width,
+        height,
+        v1x, v1y, v1z,
+        v2x, v2y, v2z,
+        c,
+    );
+    #[rustfmt::skip]
+    rast_line(
+        pixels,
+        width,
+        height,
+        v1x, v1y, v1z,
+        v3x, v3y, v3z,
+        c,
+    );
+    #[rustfmt::skip]
+    rast_line(
+        pixels,
+        width,
+        height,
+        v2x, v2y, v2z,
+        v3x, v3y, v3z,
+        c,
+    );
+}
+
+pub fn rast_triangle_wireframe_checked<Pixel: Copy>(
+    pixels: &mut [Pixel],
+    zbuffer: &mut [f32],
+    width: usize,
+    height: usize,
+    v1x: f32,
+    v1y: f32,
+    v1z: f32,
+    v2x: f32,
+    v2y: f32,
+    v2z: f32,
+    v3x: f32,
+    v3y: f32,
+    v3z: f32,
+    c: Pixel,
+) {
+    #[rustfmt::skip]
+    rast_line_checked(
+        pixels,
+        zbuffer,
+        width,
+        height,
+        v1x, v1y, v1z,
+        v2x, v2y, v2z,
+        c,
+    );
+    #[rustfmt::skip]
+    rast_line_checked(
+        pixels,
+        zbuffer,
+        width,
+        height,
+        v1x, v1y, v1z,
+        v3x, v3y, v3z,
+        c,
+    );
+    #[rustfmt::skip]
+    rast_line_checked(
+        pixels,
+        zbuffer,
+        width,
+        height,
+        v2x, v2y, v2z,
+        v3x, v3y, v3z,
+        c,
+    );
+}
+
+fn rast_triangle_inner<S: Shader, Pixel: Color>(
+    pixels: &mut [Pixel],
+    zbuffer: &mut [f32],
     width: usize,
     height: usize,
     v1x: f32,
@@ -159,10 +347,10 @@ fn rast_triangle_shaded<S: Shader, Pixel: Color>(
             {
                 if depth_check {
                     let z = (v1z * bcx) + (v2z * bcy) + (v3z * bcz);
-                    if depth_buffer[index] <= z {
+                    if zbuffer[index] <= z {
                         continue;
                     }
-                    depth_buffer[index] = z;
+                    zbuffer[index] = z;
                 }
                 let vd = shader.interpolate(bcx, bcy, bcz, d1, d2, d3);
                 let color = shader.fragment(vd);
@@ -170,26 +358,6 @@ fn rast_triangle_shaded<S: Shader, Pixel: Color>(
             }
         }
     }
-}
-
-pub fn point_in_triangle(
-    px: f32,
-    py: f32,
-    x1: f32,
-    y1: f32,
-    x2: f32,
-    y2: f32,
-    x3: f32,
-    y3: f32,
-) -> bool {
-    let det = (x1 - x3) * (y2 - y3) - (x2 - x3) * (y1 - y3);
-    let u1 = (y2 - y3) * (px - x3) + (x3 - x2) * (py - y3);
-    let u2 = (y3 - y1) * (px - x3) + (x1 - x3) * (py - y3);
-    let u3 = det - u1 - u2;
-
-    (u1.signum() == det.signum() || u1.abs() < f32::EPSILON)
-        && (u2.signum() == det.signum() || u2.abs() < f32::EPSILON)
-        && (u3.signum() == det.signum() || u3.abs() < f32::EPSILON)
 }
 
 pub fn barycentric_coordinates(
